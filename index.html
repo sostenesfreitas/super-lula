@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Super Lula World</title>
 <meta name="description" content="Descubra tudo que aconteceu no mundo do Lula">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b0b14">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
 <style>
@@ -34,7 +38,7 @@ p{max-width:720px}
 #touch{position:fixed;inset:0;display:none;pointer-events:none;z-index:5}
 .tb{position:absolute;bottom:max(3vh,env(safe-area-inset-bottom));width:clamp(60px,17vmin,120px);aspect-ratio:1;border-radius:50%;background:rgba(255,255,255,.14);border:2px solid rgba(255,255,255,.35);pointer-events:auto;font-family:'Press Start 2P',monospace;font-size:12px;color:#fff;display:flex;align-items:center;justify-content:center;user-select:none;-webkit-user-select:none;touch-action:none}
 @media(pointer:coarse){#touch{display:block}.ov{position:fixed}}
-@media(orientation:portrait) and (pointer:coarse){body{align-items:flex-start;padding-top:env(safe-area-inset-top)}.tb{bottom:8vh}.hint{font-size:8px}}
+@media(orientation:portrait) and (pointer:coarse){#wrap{width:100vw;aspect-ratio:1/1}body{align-items:flex-start;padding-top:env(safe-area-inset-top)}.tb{bottom:8vh}.hint{font-size:8px}}
 </style>
 </head>
 <body>
@@ -53,7 +57,9 @@ p{max-width:720px}
 <script>
 'use strict';
 const cv=document.getElementById('c'),ctx=cv.getContext('2d'),ov=document.getElementById('ov');
-const W=320,H=180,T=16,SC=4;
+let W=320;const H=180,T=16,SC=4;
+function fit(){const r=cv.getBoundingClientRect();W=Math.max(160,Math.min(320,Math.round(H*r.width/Math.max(1,r.height))));if(cv.width!==W*SC)cv.width=W*SC}
+addEventListener('resize',fit);addEventListener('orientationchange',()=>setTimeout(fit,200));fit();
 const keys={},pressed={};
 addEventListener('keydown',e=>{ac();if(e.code==='KeyM')muted=!muted;if(!keys[e.code])pressed[e.code]=true;keys[e.code]=true;if(/^Arrow|Space/.test(e.code))e.preventDefault()});
 addEventListener('keyup',e=>keys[e.code]=false);
