@@ -57,7 +57,7 @@ const W=320,H=180,T=16,SC=4;
 const keys={},pressed={};
 addEventListener('keydown',e=>{ac();if(e.code==='KeyM')muted=!muted;if(!keys[e.code])pressed[e.code]=true;keys[e.code]=true;if(/^Arrow|Space/.test(e.code))e.preventDefault()});
 addEventListener('keyup',e=>keys[e.code]=false);
-document.querySelectorAll('.tb').forEach(b=>{const k=b.dataset.k;const dn=e=>{e.preventDefault();ac();if(!keys[k])pressed[k]=true;keys[k]=true};const up=e=>{e.preventDefault();keys[k]=false};b.addEventListener('pointerdown',dn);b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('pointerleave',up)});
+document.querySelectorAll('.tb[data-k]').forEach(b=>{const k=b.dataset.k;const dn=e=>{e.preventDefault();ac();if(!keys[k])pressed[k]=true;keys[k]=true};const up=e=>{e.preventDefault();keys[k]=false};b.addEventListener('pointerdown',dn);b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('pointerleave',up)});
 ov.addEventListener('click',e=>{ac();if(e.target.tagName!=='A'&&e.target.tagName!=='BUTTON')pressed.Enter=true});
 document.getElementById('fs').addEventListener('pointerdown',async e=>{e.preventDefault();try{if(document.fullscreenElement)await document.exitFullscreen();else{await document.documentElement.requestFullscreen();await screen.orientation.lock('landscape')}}catch(_){}});
 const K=k=>!!keys[k];
