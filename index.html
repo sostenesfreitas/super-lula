@@ -305,7 +305,7 @@ function update(){const lv=G.lv,p=G.p;G.t++;
  // projéteis
  G.projs=G.projs.filter(pr=>{pr.x+=pr.vx;pr.y+=pr.vy;
   if(pr.y>G.MH*T||pr.x<0||pr.x>G.MW*T||(pr.maxx&&pr.x>pr.maxx))return false;
-  if(solid(Math.floor((pr.x+4)/T),Math.floor((pr.y+9)/T)))return false;
+  const tc=(G.grid[Math.floor((pr.y+9)/T)]||[])[Math.floor((pr.x+4)/T)];if(tc==='#'||tc==='G')return false;
   if(hit(pr,box)){if(lv.onProj&&lv.onProj(G,pr))return false;die(G,'default');return false}return true});
  G.floats=G.floats.filter(f=>{f.y-=.3;return --f.n>0});
  if(G.msg&&--G.msg.n<=0)G.msg=null;
