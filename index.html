@@ -58,7 +58,7 @@ p{max-width:720px}
 'use strict';
 const cv=document.getElementById('c'),ctx=cv.getContext('2d'),ov=document.getElementById('ov');
 let W=320;const H=180,T=16,SC=4;
-function fit(){const r=cv.getBoundingClientRect();W=Math.max(160,Math.min(320,Math.round(H*r.width/Math.max(1,r.height))));if(cv.width!==W*SC)cv.width=W*SC}
+function fit(){const r=cv.getBoundingClientRect();const w=Math.round(H*r.width/Math.max(1,r.height));W=isFinite(w)?Math.max(160,Math.min(320,w)):320;if(cv.width!==W*SC)cv.width=W*SC}
 addEventListener('resize',fit);addEventListener('orientationchange',()=>setTimeout(fit,200));fit();
 const keys={},pressed={};
 addEventListener('keydown',e=>{ac();if(e.code==='KeyM')muted=!muted;if(!keys[e.code])pressed[e.code]=true;keys[e.code]=true;if(/^Arrow|Space/.test(e.code))e.preventDefault()});
