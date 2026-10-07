@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Super Lula World</title>
+<meta name="description" content="Descubra tudo que aconteceu no mundo do Lula">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap">
+<style>
+:root{--bg:#0b0b14;--fg:#f4f0e6;--acc:#d42a2a;--acc2:#ffd23f;--mut:#9aa}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--fg);font-family:VT323,monospace;font-size:22px;line-height:1.3;overflow:hidden}body{display:flex;align-items:center;justify-content:center}
+#wrap{position:relative;width:min(100vw,177.7vh);aspect-ratio:16/9;background:#000}
+canvas{width:100%;height:100%;image-rendering:pixelated;display:block}
+.ov{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:20px 24px;background:rgba(5,5,12,.93);gap:12px;overflow:auto}
+.ov.hide{display:none}
+h1,h2,.px,.hint,.kick,.lv button{font-family:'Press Start 2P',monospace}
+h1{font-size:clamp(14px,3.4vw,32px);color:var(--acc2);line-height:1.5;text-shadow:3px 3px var(--acc)}
+h2{font-size:clamp(10px,2vw,18px);color:var(--acc2);line-height:1.6}
+.kick{font-size:10px;color:var(--mut)}
+p{max-width:720px}
+.hint{color:var(--mut);font-size:9px;margin-top:6px;line-height:1.8}
+.lv{display:grid;gap:6px;width:min(560px,92%)}
+.lv button{font-size:10px;color:var(--fg);background:#161626;border:3px solid #333;padding:9px 10px;text-align:left;cursor:pointer;line-height:1.5}
+.lv button.sel{border-color:var(--acc2)}
+.lv button.lock{opacity:.4}
+.src{font-size:16px;color:var(--mut);text-align:left;max-width:720px;line-height:1.25}
+.src a{color:#8cf}
+.mer{text-align:left;max-width:720px;font-size:19px;line-height:1.25}
+.mer li{margin-bottom:6px}
+.mer b{color:var(--acc2)}
+.go-big{font-family:'Press Start 2P',monospace;font-size:clamp(16px,4vw,36px);color:var(--acc)}
+#touch{position:absolute;inset:0;display:none;pointer-events:none}
+.tb{position:absolute;bottom:4%;width:13%;aspect-ratio:1;border-radius:50%;background:rgba(255,255,255,.14);border:2px solid rgba(255,255,255,.35);pointer-events:auto;font-family:'Press Start 2P',monospace;font-size:12px;color:#fff;display:flex;align-items:center;justify-content:center;user-select:none;-webkit-user-select:none;touch-action:none}
+@media(pointer:coarse){#touch{display:block}}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="c" width="1280" height="720"></canvas>
+<div id="touch">
+ <div class="tb" data-k="ArrowLeft" style="left:3%">&#9664;</div>
+ <div class="tb" data-k="ArrowRight" style="left:18%">&#9654;</div>
+ <div class="tb" data-k="KeyX" style="right:18%">B</div>
+ <div class="tb" data-k="KeyZ" style="right:3%">A</div>
+ <div class="tb" data-k="Escape" style="right:3%;bottom:auto;top:4%;width:7%;font-size:8px">II</div>
+</div>
+<div id="ov" class="ov"></div>
+</div>
+<script>
+'use strict';
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),ov=document.getElementById('ov');
+const W=320,H=180,T=16,SC=4;
+const keys={},pressed={};
+addEventListener('keydown',e=>{ac();if(e.code==='KeyM')muted=!muted;if(!keys[e.code])pressed[e.code]=true;keys[e.code]=true;if(/^Arrow|Space/.test(e.code))e.preventDefault()});
+addEventListener('keyup',e=>keys[e.code]=false);
+document.querySelectorAll('.tb').forEach(b=>{const k=b.dataset.k;const dn=e=>{e.preventDefault();ac();if(!keys[k])pressed[k]=true;keys[k]=true};const up=e=>{e.preventDefault();keys[k]=false};b.addEventListener('pointerdown',dn);b.addEventListener('pointerup',up);b.addEventListener('pointercancel',up);b.addEventListener('pointerleave',up)});
+ov.addEventListener('click',e=>{ac();if(e.target.tagName!=='A'&&e.target.tagName!=='BUTTON')pressed.Enter=true});
+const K=k=>!!keys[k];
+const left=()=>K('ArrowLeft')||K('KeyA'),right=()=>K('ArrowRight')||K('KeyD'),jumpH=()=>K('KeyZ')||K('ArrowUp')||K('KeyW')||K('Space'),act=()=>K('KeyX')||K('ShiftLeft');
+const jumpP=()=>pressed.KeyZ||pressed.ArrowUp||pressed.KeyW||pressed.Space,okP=()=>pressed.Enter||pressed.KeyZ,backP=()=>pressed.Escape||pressed.KeyP;
+// ---------- áudio (WebAudio, sem arquivos) ----------
+let AC=null,muted=false,mt=0,mi=0;
+function ac(){if(!AC){AC=new (window.AudioContext||window.webkitAudioContext)();setInterval(music,100)}else if(AC.state==='suspended')AC.resume();return AC}
+function note(f,t,d,type,v){const a=AC,o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(a.destination);o.start(t);o.stop(t+d)}
+function beep(f,d,type='square',v=.07,slide=0){if(muted||!AC)return;const a=AC,o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.setValueAtTime(f,a.currentTime);if(slide)o.frequency.exponentialRampToValueAtTime(slide,a.currentTime+d);g.gain.setValueAtTime(v,a.currentTime);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+d);o.connect(g).connect(a.destination);o.start();o.stop(a.currentTime+d)}
+const SFX={jump:()=>beep(300,.15,'square',.05,600),coin:()=>{beep(988,.08,'square',.05);setTimeout(()=>beep(1319,.15,'square',.05),70)},die:()=>beep(400,.6,'sawtooth',.08,60),clear:()=>[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.2,'square',.06),i*120)),pay:()=>beep(660,.1,'triangle',.08,880),stomp:()=>beep(200,.1,'square',.06,100),msg:()=>beep(880,.1,'triangle',.05)};
+const MEL=[0,4,7,12,7,4,0,-5,2,5,9,14,9,5,2,-3,0,4,7,12,16,12,7,4,-1,2,5,11,14,11,5,2],BASS=[0,0,7,7,-3,-3,4,4,0,0,7,7,-1,-1,4,4];
+function music(){if(!AC||muted||S.screen!=='play')return;const a=AC;if(mt<a.currentTime)mt=a.currentTime;while(mt<a.currentTime+.25){const n=MEL[mi%MEL.length];note(330*2**(n/12),mt,.16,'square',.025);if(mi%2===0)note(82*2**(BASS[(mi>>1)%BASS.length]/12),mt,.3,'triangle',.06);if(mi%4===0)note(60,mt,.08,'sawtooth',.04);mt+=.17;mi++}}
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const fmt=(n,d=0)=>n.toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const R=(a,b)=>a+Math.random()*(b-a);
+
+// ---------- personagens (pixel art por retângulos) ----------
+const LULA={body:'#d42a2a',skin:'#e8b89a',hair:'#eee',beard:true};
+const LUPI={body:'#2a5cd4',skin:'#e8b89a',hair:'#ddd',beard:false};
+const ENT={
+ J:{walker:1,spd:.6,body:'#555',skin:'#f0c0a0',hair:'#f0c0a0',label:'RJ',lose:'J'},   // Roberto Jefferson / jornalista
+ E:{walker:1,spd:.7,body:'#222',skin:'#d9a784',hair:'#222',label:'',lose:'E'},
+ D:{npc:1,body:'#2f6f3f',skin:'#d9a784',hair:'#333',label:'D'},
+ R:{npc:1,body:'#333',skin:'#f0d0b0',hair:'#333',label:'M',lose:'default'},
+ M:{npc:1,body:'#444',skin:'#e0b090',hair:'#aaa',label:'GM'},
+ V:{npc:1,body:'#111',skin:'#e0b090',hair:'#222',label:'$'},
+};
+function guy(x,y,face,o,walk,alpha){x|=0;y|=0;ctx.save();if(alpha!=null)ctx.globalAlpha=alpha;
+ ctx.fillStyle=o.skin;ctx.fillRect(x+2,y+1,8,6);
+ ctx.fillStyle=o.hair;ctx.fillRect(x+2,y,8,2);
+ if(o.beard){ctx.fillStyle='#eee';ctx.fillRect(x+2,y+5,8,2)}
+ ctx.fillStyle='#000';const ex=face<0?3:6;ctx.fillRect(x+ex,y+3,1,1);ctx.fillRect(x+ex+2,y+3,1,1);
+ ctx.fillStyle=o.body;ctx.fillRect(x,y+7,12,5);
+ ctx.fillStyle='#222';const k=walk?(Math.floor(walk/6)%2?1:-1):0;ctx.fillRect(x+2+k,y+12,3,2);ctx.fillRect(x+7-k,y+12,3,2);
+ if(o.label){ctx.fillStyle='#fff';ctx.font='5px "Press Start 2P"';ctx.fillText(o.label,x+1,y+11)}
+ ctx.restore()}
+function paper(x,y,c,l){x|=0;y|=0;ctx.fillStyle=c;ctx.fillRect(x,y,8,10);ctx.fillStyle='#888';for(let i=2;i<9;i+=2)ctx.fillRect(x+1,y+i,6,1);if(l){ctx.fillStyle='#000';ctx.font='5px "Press Start 2P"';ctx.fillText(l,x+1,y+8)}}
+function coinDraw(x,y,c,l){x|=0;y|=0;ctx.fillStyle=c;ctx.fillRect(x+4,y+3,8,10);ctx.fillRect(x+3,y+4,10,8);ctx.fillStyle='#000';ctx.font='6px "Press Start 2P"';ctx.fillText(l,x+5,y+11)}
+
+// ---------- fases ----------
+function tower(){const w=22,rows=[];for(let y=0;y<34;y++){const r=' '.repeat(w).split('');r[0]='#';r[w-1]='#';
+ if(y===33)r.fill('#');else if(y>=3&&y<=30&&(y-3)%3===0){const k=(y-3)/3,lft=k%2===0;for(let x=lft?1:11;x<=(lft?10:20);x++)r[x]='='}
+ if(y>=2&&y<=29&&(y-2)%3===0){const k=(y-2)/3;r[k%2===0?5:16]='o'}
+ if(y===32)r[1]='P';if(y===2)r[8]='F';rows.push(r.join(''))}return rows}
+
+const LEVELS=[
+{name:'O Mensalão',skin:LULA,sky:'#6fb3e8',ground:'#7a5230',top:'#3e9a3e',
+ intro:'Você acabou de tomar posse. O detalhe: a base aliada no Congresso está cara. Pegue os envelopes e entregue uma mensalidade pra cada deputado. Cuidado com o Roberto Jefferson: se ele encostar em você, conta tudo pra Folha. Sem todos os deputados pagos, a votação não passa.',
+ lose:{default:{head:'Virou entrevista!',sub:'Jefferson contou tudo pra Folha de S.Paulo.'},pit:{head:'Caiu na CPI!',sub:'A CPI dos Correios te esperava no fundo do buraco.'}},
+ fact:'Em 2005, o deputado Roberto Jefferson revelou à Folha o pagamento de mesadas a parlamentares da base aliada para votar com o governo. Em 2012, o STF condenou José Dirceu, ex-chefe da Casa Civil de Lula, a 10 anos e 10 meses por corrupção ativa e formação de quadrilha. Lula pediu desculpas em pronunciamento em 2005 e disse que não sabia do esquema.',
+ src:{v:'Congresso em Foco, 2012',u:'https://www.congressoemfoco.com.br/noticia/63284/nos-jornais-supremo-condena-dirceu-por-compra-de-voto-no-congresso'},
+ merito:'Lula não foi denunciado no mensalão. Não há acusação formal contra ele nesse caso.',
+ map:[
+'                                                                                            ',
+'                                                                                            ',
+'                                                                                            ',
+'                                                                                            ',
+'                o        D                   o o        D                  o       D        ',
+'              =====    =====              =========   =====              ====    =====      ',
+'                                                                                            ',
+'         o            o          D              o             o       D         o          F',
+'       =====        =====      =====          =====         =====   =====     =====     ####',
+'                                                                                            ',
+'P  D                  J       J                    J                    J                   ',
+'###########################  ###########################   ####################  ###########'],
+ coin:(x,y)=>paper(x+4,y+3,'#f5e6a8','$'),coinName:'envelope',
+ init(G){G.C={env:0,paid:0,total:G.ents.filter(e=>e.c==='D').length}},
+ onCoin(G){G.C.env++},
+ touch(G,e){if(e.c==='D'&&!e.paid&&G.C.env>0){e.paid=1;G.C.env--;G.C.paid++;float(G,e,'mensalidade paga');SFX.pay()}},
+ exitOpen:G=>G.C.paid>=G.C.total,
+ hud:G=>`Envelopes ${G.C.env} · Deputados ${G.C.paid}/${G.C.total}`,
+ stat:G=>({deputados:G.C.paid})},
+
+{name:'O Tríplex',skin:LULA,sky:'#87c6f0',ground:'#9a9a9a',top:'#c9c9c9',
+ intro:'Bem-vindo ao Guarujá. Suba o Edifício Solaris até o tríplex que, segundo você, nunca foi seu. Colete as reformas no caminho: cozinha, elevador, piscina. Lá de cima, o juiz Moro despeja sentenças. Desvie delas. Chegue ao último andar.',
+ lose:{default:{head:'Condenado!',sub:'9 anos e 6 meses. Depois 12 anos e 1 mês.'},pit:{head:'Caiu!',sub:'Caiu do Solaris direto na 13ª Vara de Curitiba.'}},
+ fact:'Em julho de 2017, o juiz Sergio Moro condenou Lula a 9 anos e 6 meses por corrupção passiva e lavagem, pelo tríplex do Guarujá reformado pela OAS. O TRF-4 aumentou a pena para 12 anos e 1 mês em 2018. Em março de 2021, o STF anulou a condenação por entender que Curitiba não era o foro competente; em junho, declarou Moro suspeito por 7 votos a 4. Em 2022, o caso prescreveu.',
+ src:{v:'Correio Braziliense, 12/2021',u:'https://www.correiobraziliense.com.br/politica/2021/12/amp/4968840-mpf-pede-arquivamento-do-caso-triplex-envolvendo-ex-presidente-lula.html'},
+ merito:'Condenação anulada pelo STF em 2021. O caso prescreveu em 2022. Juridicamente, não há condenação.',
+ map:tower(),
+ coin:(x,y)=>coinDraw(x,y,'#ffd23f','R'),coinName:'reforma',
+ init(G){G.C={}},
+ tick(G){if(G.t%40===0)G.projs.push({x:R(T,(G.MW-2)*T),y:G.cam.y-12,vx:0,vy:R(1.3,2),w:8,h:10,k:'sent'})},
+ hud:G=>`Andar ${Math.max(0,Math.floor((G.MH*T-G.p.y-T)/(3*T)))}/10 · Reformas ${G.coins}`,
+ exitOpen:()=>true,
+ stat:G=>({andares:10,reformas:G.coins})},
+
+{name:'O Sítio',skin:LULA,sky:'#9ad7f5',ground:'#6b4a2b',top:'#4caf50',stomp:1,
+ intro:'Fim de semana em Atibaia. O sítio é dos amigos, mas as reformas são pra você: pedalinho, cozinha nova, campo de futebol. Pegue todas. Os delatores da Odebrecht e da OAS passeiam pelo gramado: pule em cima deles pra homologar. Não caia no lago.',
+ lose:{default:{head:'Delatado!',sub:'O executivo contou tudo em troca de pena menor.'},pit:{head:'Afundou!',sub:'Afundou no lago junto com o pedalinho.'},hazard:{head:'Afundou!',sub:'Afundou no lago junto com o pedalinho.'}},
+ fact:'Em fevereiro de 2019, a juíza Gabriela Hardt condenou Lula a 12 anos e 11 meses pelo sítio de Atibaia, reformado por Odebrecht e OAS. O TRF-4 subiu a pena para 17 anos em novembro de 2019. Em 2021, o STF anulou a condenação pelos mesmos motivos do tríplex; em agosto, a Justiça do DF rejeitou a denúncia por falta de provas.',
+ src:{v:'Poder360, 2020',u:'https://www.poder360.com.br/justica/defesa-de-lula-recorre-ao-stf-para-anular-condenacao-no-caso-do-sitio/'},
+ merito:'Condenação anulada em 2021. A denúncia foi rejeitada por falta de provas.',
+ map:[
+'                                                                                                ',
+'                                                                                                ',
+'                                                                                                ',
+'                                                                                                ',
+'                    o                         o                             o                   ',
+'                  =====                     =====                         =====                 ',
+'                                                                                                ',
+'        o                   o        o                   o         o                  o       F ',
+'      =====               =====    =====               =====     =====              =====   ####',
+'                                                                                                ',
+'P           E                  E                    E                   E                  E    ',
+'###############~~~##################~~~######################~~~######################~~~#######'],
+ coin:(x,y)=>coinDraw(x,y,'#ffd23f','R'),coinName:'reforma',
+ init(G){G.C={total:G.totalCoins}},
+ hud:G=>`Reformas ${G.coins}/${G.C.total}`,
+ exitOpen:G=>G.coins>=G.C.total,
+ stat:G=>({sitio:G.coins})},
+
+{name:'580 Dias',skin:LULA,sky:'#2b2b3a',ground:'#4a4a55',top:'#6a6a78',
+ intro:'Sala da PF em Curitiba. Sua missão é simples: segurar 580 dias. Moro continua atirando sentenças pela janela; desvie delas. Quando a porta abrir, corra até o STF e recolha os 7 votos pela suspeição. Os 4 votos contrários são espinhos: não pise. Segure X para correr.',
+ lose:{default:{head:'Mais um dia!',sub:'A sentença acertou. A vigília continua lá fora.'},hazard:{head:'Voto contra!',sub:'Pisou num dos 4 votos contra a suspeição.'},pit:{head:'Caiu!',sub:'Caiu antes de chegar ao STF.'}},
+ fact:'Lula foi preso em 7 de abril de 2018 e ficou 580 dias na sede da PF em Curitiba. Saiu em 8 de novembro de 2019, após o STF proibir a prisão depois da segunda instância. Em 2021, o STF anulou as condenações e declarou a suspeição de Moro por 7 votos a 4.',
+ src:{v:'Poder360, 08/11/2019',u:'https://www.poder360.com.br/justica/lula-livre-ex-presidente-deixa-a-prisao-em-curitiba/'},
+ merito:'A prisão decorreu de condenação depois anulada. Moro foi declarado suspeito por 7 a 4. Nenhuma pena foi mantida.',
+ map:[
+'#########################                                                                        ',
+'#                       G                                                                        ',
+'#                       G                                                                        ',
+'#                       G                                                                        ',
+'#                       G                                                                        ',
+'#  =======    =======   G                      o          o            o                         ',
+'#                       G                    =====      =====        =====                       ',
+'#                       G                                                                        ',
+'#  =======    =======   G        o       o                    o                 o               F',
+'#                       G      =====   =====                =====             =====          ####',
+'#R P                    G                                                                        ',
+'################################^^^########^^^####################^^^########^^^##################'],
+ coin:(x,y)=>coinDraw(x,y,'#fff','V'),coinName:'voto',
+ init(G){G.C={days:0,open:false}},
+ tick(G){const p=G.p;if(!G.C.open){if(p.x<24*T)G.C.days=Math.min(580,G.C.days+(G.t%3===0?1:0));
+   if(G.t%45===0){const ys=[10,7,4];G.projs.push({x:2*T,y:ys[Math.floor(Math.random()*3)]*T+3,vx:2.2,vy:0,w:8,h:10,k:'sent',maxx:24*T})}
+   if(G.C.days>=580){G.C.open=true;for(const r of G.grid)for(let x=0;x<r.length;x++)if(r[x]==='G')r[x]=' ';msg(G,'O STF decidiu. A porta abriu!')}}},
+ hud:G=>G.C.open?`Votos pela suspeição ${G.coins}/7`:`Dia ${G.C.days}/580`,
+ exitOpen:G=>G.coins>=7,
+ stat:G=>({dias:580})},
+
+{name:'Sem Desconto',skin:LUPI,sky:'#d9e4ec',ground:'#5a6b7a',top:'#8aa0b0',
+ intro:'Surpresa: nesta fase você não é o Lula. Você é o Lupi, ministro da Previdência. As entidades estão descontando dos aposentados e o dinheiro cai do céu: recolha. O TCU e a CGU mandam alertas: cada alerta que gruda em você deixa o pulo mais pesado. Três alertas e a PF chega com a Operação Sem Desconto.',
+ lose:{default:{head:'Sem Desconto!',sub:'A PF chegou. Depois da conversa com o Lula, você pediu demissão.'},pit:{head:'Caiu no rombo!',sub:'O buraco tinha R$ 6,3 bilhões de profundidade.'}},
+ fact:'Em abril de 2025, a Operação Sem Desconto, da PF e da CGU, revelou descontos não autorizados em aposentadorias e pensões, estimados em R$ 6,3 bilhões entre 2019 e 2024. O ministro Carlos Lupi pediu demissão em 2 de maio, após conversa com Lula, cobrado por omissão diante de alertas do TCU e da CGU desde 2023.',
+ src:{v:'Congresso em Foco, 05/2025',u:'https://www.congressoemfoco.com.br/noticia/108221/crise-no-inss-entenda-escandalo-que-derrubou-ministro-da-previdencia'},
+ merito:'O esquema começou em 2019 e atravessou dois governos. Não há acusação contra Lula ou Lupi; a investigação continua.',
+ map:[
+'                                                                                                    ',
+'                                                                                                    ',
+'                                                                                                    ',
+'                                                                                                    ',
+'           o o                 o o                  o o                    o o                      ',
+'         =======             =======              =======                =======                    ',
+'                                                                                                    ',
+'     o          o o       o          o o       o          o o       o          o o            o    F',
+'   =====      =======   =====      =======   =====      =======   =====      =======        ===  ###',
+'                                                                                                    ',
+'P                                                                                      E     E      ',
+'######################  ##########################   ############################  #################'],
+ coin:(x,y)=>coinDraw(x,y,'#7ad07a','$'),coinName:'desconto',
+ init(G){G.C={alerts:0}},
+ jumpV:G=>-6.3+G.C.alerts*.2,speed:G=>1-G.C.alerts*.15,
+ tick(G){if(G.t%60===0)G.projs.push({x:Math.max(T,Math.min(G.p.x+R(-80,80),(G.MW-2)*T)),y:G.cam.y-12,vx:0,vy:1.1,w:8,h:10,k:'alert'})},
+ onProj(G,pr){if(pr.k==='alert'){G.C.alerts++;float(G,G.p,'alerta do TCU grudou');if(G.C.alerts>=3)die(G,'default');return true}},
+ hud:G=>`R$ ${fmt(G.coins*.3,1)} bi · Alertas ${G.C.alerts}/3`,
+ exitOpen:G=>G.coins>=G.totalCoins,
+ stat:G=>({bi:G.coins*.3})},
+
+{name:'Compliance Zero',skin:LULA,sky:'#3a2a1a',ground:'#5a3b1e',top:'#8c6a3c',
+ intro:'Palácio do Planalto, dezembro de 2024. O Mantega quer te apresentar um banqueiro. Encontre o Mantega, depois o Vorcaro, sem a reunião aparecer na agenda oficial: segure X pra sair da agenda. Os jornalistas patrulham os corredores; se te virem visível, vira manchete. Os assessores recarregam a discrição.',
+ lose:{default:{head:'Printado!',sub:'A reunião fora da agenda virou manchete.'},pit:{head:'Caiu!',sub:'Caiu da rampa com o banqueiro do lado.'}},
+ fact:'Em dezembro de 2024, Lula recebeu Daniel Vorcaro, dono do Banco Master, em reunião fora da agenda oficial, intermediada pelo ex-ministro Guido Mantega. Em novembro de 2025, a PF prendeu Vorcaro na Operação Compliance Zero. Lula diz que só prometeu ao banqueiro uma "investigação técnica".',
+ src:{v:'CNN Brasil, 2026',u:'https://www.cnnbrasil.com.br/politica/lula-diz-que-defendeu-a-vorcaro-investigacao-tecnica-sobre-caso-master/'},
+ merito:'O encontro fora da agenda é documentado. Não há acusação formal contra Lula no caso Master.',
+ map:[
+'####################################################################################################',
+'                                                                                                    ',
+'                                                                                                    ',
+'                                                                                                    ',
+'              o                        o                       o                        o           ',
+'            =====                    =====                   =====                    =====         ',
+'                                                                                                    ',
+'       o              o         M            o            o              o        V              F  ',
+'     =====          =====     =====        =====        =====          =====    =====           ####',
+'                                                                                                    ',
+'P          J                 J                   J                  J               J                ',
+'####################################################################################################'],
+ coin:(x,y)=>coinDraw(x,y,'#9ad','A'),coinName:'assessor',
+ init(G){G.C={inv:100,vis:true,met:false,done:false}},
+ noRun:1,
+ tick(G){if(act()&&G.C.inv>0){G.C.vis=false;G.C.inv=Math.max(0,G.C.inv-.5)}else G.C.vis=true},
+ ghost:G=>!G.C.vis,
+ onCoin(G){G.C.inv=Math.min(100,G.C.inv+35)},
+ touch(G,e){if(e.c==='M'&&!G.C.met){G.C.met=true;msg(G,'Mantega marcou a reunião.')}
+   if(e.c==='V'&&G.C.met&&!G.C.done){G.C.done=true;msg(G,'Reunião feita. Nada na agenda.')}},
+ hud:G=>`Discrição ${Math.round(G.C.inv)}% · Mantega ${G.C.met?'ok':'--'} · Vorcaro ${G.C.done?'ok':'--'}`,
+ exitOpen:G=>G.C.done,
+ stat:G=>({reunioes:1})},
+];
+LEVELS.forEach((l,i)=>l.title=`Fase ${i+1} · ${l.name}`);
+
+// ---------- estado ----------
+const S={screen:'title',li:0,sel:0,lives:5,unlocked:1,stats:{}};
+let G=null;
+function msg(G,t){G.msg={t,n:150};SFX.msg()}
+function float(G,e,t){G.floats.push({x:e.x,y:e.y-6,t,n:60})}
+function startLevel(i){const lv=LEVELS[i];S.li=i;const grid=lv.map.map(r=>r.split(''));const MW=Math.max(...grid.map(r=>r.length));grid.forEach(r=>{while(r.length<MW)r.push(' ')});
+ G={lv,grid,MW,MH:grid.length,p:{x:T,y:0,w:12,h:14,vx:0,vy:0,g:false,face:1,walk:0},ents:[],projs:[],floats:[],coins:0,totalCoins:0,t:0,cam:{x:0,y:0},msg:null,dead:0,won:0,touchCd:0};
+ grid.forEach((r,y)=>r.forEach((c,x)=>{if(c==='P'){G.p.x=x*T+2;G.p.y=y*T+2;r[x]=' '}else if(c==='o')G.totalCoins++;else if(ENT[c]){G.ents.push({c,x:x*T+2,y:y*T+2,w:12,h:14,vx:ENT[c].walker?-ENT[c].spd:0,vy:0,g:false,face:-1,walk:0});r[x]=' '}}));
+ lv.init(G);S.screen='play';ov.className='ov hide'}
+function die(G,why){if(G.dead||G.won)return;SFX.die();G.dead=1;G.why=why;G.p.vy=-5;S.lives--}
+
+// ---------- física ----------
+const solidC=c=>c==='#'||c==='='||c==='G';
+function solid(tx,ty){if(tx<0||tx>=G.MW)return true;if(ty<0||ty>=G.MH)return false;return solidC(G.grid[ty][tx])}
+function tilesOf(e,f){const x0=Math.floor(e.x/T),x1=Math.floor((e.x+e.w-1)/T),y0=Math.floor(e.y/T),y1=Math.floor((e.y+e.h-1)/T);for(let ty=y0;ty<=y1;ty++)for(let tx=x0;tx<=x1;tx++)if(ty>=0&&ty<G.MH&&tx>=0&&tx<G.MW&&f(tx,ty,G.grid[ty][tx]))return true;return false}
+function moveX(e,dx){e.x+=dx;const x0=Math.floor(e.x/T),x1=Math.floor((e.x+e.w)/T),y0=Math.floor(e.y/T),y1=Math.floor((e.y+e.h-1)/T);
+ for(let ty=y0;ty<=y1;ty++){if(dx>0&&solid(x1,ty)){e.x=x1*T-e.w;return true}if(dx<0&&solid(x0,ty)){e.x=(x0+1)*T;return true}}return false}
+function moveY(e,dy){e.y+=dy;e.g=false;const x0=Math.floor(e.x/T),x1=Math.floor((e.x+e.w-1)/T),y0=Math.floor(e.y/T),y1=Math.floor((e.y+e.h)/T);
+ for(let tx=x0;tx<=x1;tx++){if(dy>0&&solid(tx,y1)){e.y=y1*T-e.h;e.vy=0;e.g=true;return true}if(dy<0&&solid(tx,y0)){e.y=(y0+1)*T;e.vy=0;return true}}return false}
+const hit=(a,b)=>a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+
+function update(){const lv=G.lv,p=G.p;G.t++;
+ if(G.dead){p.vy+=.35;p.y+=p.vy;if(++G.dead>60){S.screen='dead';show()}return}
+ if(G.won){if(++G.won>40){S.screen='clear';Object.assign(S.stats,lv.stat(G));S.unlocked=Math.max(S.unlocked,S.li+2);show()}return}
+ const spd=(act()&&!lv.noRun?2.2:1.4)*(lv.speed?lv.speed(G):1);
+ if(left()){p.vx=-spd;p.face=-1}else if(right()){p.vx=spd;p.face=1}else p.vx=0;
+ if(p.vx)p.walk++;
+ if(jumpP()&&p.g){p.vy=lv.jumpV?lv.jumpV(G):-6.3;p.g=false;SFX.jump()}
+ if(!jumpH()&&p.vy<-2)p.vy=-2;
+ p.vy=Math.min(p.vy+.35,6);moveX(p,p.vx);moveY(p,p.vy);
+ G.cam.x=Math.max(0,Math.min(p.x-W/2,G.MW*T-W));G.cam.y=Math.max(0,Math.min(p.y-H/2,G.MH*T-H));
+ lv.tick&&lv.tick(G);
+ // tiles
+ const box={x:p.x+2,y:p.y+2,w:p.w-4,h:p.h-4};
+ if(p.y>G.MH*T)return die(G,'pit');
+ if(tilesOf(box,(x,y,c)=>c==='^'||c==='~'))return die(G,'hazard');
+ tilesOf(box,(x,y,c)=>{if(c==='o'){G.grid[y][x]=' ';G.coins++;SFX.coin();lv.onCoin&&lv.onCoin(G);float(G,{x:x*T,y:y*T},lv.coinName)}if(c==='F'){if(lv.exitOpen(G)){if(!G.won)SFX.clear();G.won=1}else if(G.t%30===0)msg(G,'Saída fechada.')}return false});
+ // entidades
+ if(G.touchCd)G.touchCd--;
+ for(const e of G.ents){if(e.dead)continue;const d=ENT[e.c];
+  if(d.walker){e.vy=Math.min(e.vy+.35,6);moveY(e,e.vy);if(e.g){const ax=e.vx>0?e.x+e.w+1:e.x-1;if(!solid(Math.floor(ax/T),Math.floor((e.y+e.h+1)/T)))e.vx=-e.vx}if(moveX(e,e.vx))e.vx=-e.vx;e.face=e.vx<0?-1:1;e.walk++}
+  if(hit(p,e)){if(d.npc&&!d.lose){if(!G.touchCd){lv.touch&&lv.touch(G,e);G.touchCd=20}}
+   else if(lv.ghost&&lv.ghost(G)){}
+   else if(lv.stomp&&p.vy>0&&p.y+p.h<e.y+9){e.dead=1;p.vy=-4;SFX.stomp();float(G,e,'delação homologada')}
+   else return die(G,'default')}}
+ // projéteis
+ G.projs=G.projs.filter(pr=>{pr.x+=pr.vx;pr.y+=pr.vy;
+  if(pr.y>G.MH*T||pr.x<0||pr.x>G.MW*T||(pr.maxx&&pr.x>pr.maxx))return false;
+  if(solid(Math.floor((pr.x+4)/T),Math.floor((pr.y+9)/T)))return false;
+  if(hit(pr,box)){if(lv.onProj&&lv.onProj(G,pr))return false;die(G,'default');return false}return true});
+ G.floats=G.floats.filter(f=>{f.y-=.3;return --f.n>0});
+ if(G.msg&&--G.msg.n<=0)G.msg=null;
+ if(backP()){S.screen='map';show()}}
+
+// ---------- desenho ----------
+function draw(){const lv=G.lv,c=G.cam;ctx.setTransform(SC,0,0,SC,0,0);ctx.imageSmoothingEnabled=false;ctx.fillStyle=lv.sky;ctx.fillRect(0,0,W,H);
+ // fundo paralaxe
+ ctx.fillStyle='rgba(0,0,0,.12)';for(let i=0;i<8;i++){const bx=((i*90-c.x*.3)%(W+120)+W+120)%(W+120)-60;ctx.fillRect(bx,H-70-(i%3)*18,40+(i%4)*12,80)}
+ ctx.save();ctx.translate(-Math.floor(c.x),-Math.floor(c.y));
+ const x0=Math.floor(c.x/T),x1=Math.min(G.MW-1,x0+W/T+1),y0=Math.floor(c.y/T),y1=Math.min(G.MH-1,y0+H/T+1);
+ for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const ch=G.grid[y][x],px=x*T,py=y*T;
+  if(ch==='#'){ctx.fillStyle=lv.ground;ctx.fillRect(px,py,T,T);ctx.fillStyle=lv.top;if(!solid(x,y-1))ctx.fillRect(px,py,T,3);ctx.fillStyle='rgba(0,0,0,.15)';ctx.fillRect(px+(y%2?0:8),py+8,8,1);ctx.fillRect(px+4,py+12,1,4)}
+  else if(ch==='='){ctx.fillStyle='#b58a4a';ctx.fillRect(px,py,T,6);ctx.fillStyle='#e0c080';ctx.fillRect(px,py,T,2)}
+  else if(ch==='G'){ctx.fillStyle='#777';for(let i=2;i<T;i+=5)ctx.fillRect(px+i,py,2,T)}
+  else if(ch==='^'){ctx.fillStyle='#c33';for(let i=0;i<T;i+=4){ctx.fillRect(px+i+1,py+6,2,10);ctx.fillRect(px+i,py+10,4,6)}}
+  else if(ch==='~'){ctx.fillStyle='#2d6cdf';ctx.fillRect(px,py+4,T,T-4);ctx.fillStyle='#9cc8ff';ctx.fillRect(px+((G.t>>3)+x)%8,py+4,4,1)}
+  else if(ch==='o')lv.coin(px,py)
+  else if(ch==='F'){const open=lv.exitOpen(G);ctx.fillStyle='#5a3b1e';ctx.fillRect(px+2,py,12,T);ctx.fillStyle=open?'#ffd23f':'#333';ctx.fillRect(px+4,py+2,8,10);ctx.fillStyle='#eee';ctx.fillRect(px+14,py-14,1,16);ctx.fillStyle=open?'#2fc44f':'#c33';ctx.fillRect(px+15,py-14,8,5)}}
+ for(const e of G.ents){if(e.dead)continue;const d=ENT[e.c];guy(e.x,e.y,e.face,d,d.walker?e.walk:0);if(e.c==='D'&&!e.paid){ctx.fillStyle='#ffd23f';ctx.font='6px "Press Start 2P"';ctx.fillText('$',e.x+3,e.y-3)}}
+ for(const pr of G.projs)paper(pr.x,pr.y,pr.k==='alert'?'#ff9a3c':'#fff',pr.k==='alert'?'!':'§');
+ const p=G.p;if(!(G.dead&&G.dead>50))guy(p.x,p.y,p.face,lv.skin,p.vx?p.walk:0,lv.ghost&&lv.ghost(G)?.35:1);
+ ctx.font='5px "Press Start 2P"';for(const f of G.floats){ctx.fillStyle='#fff';ctx.fillText(f.t,f.x-10,f.y)}
+ ctx.restore();
+ // HUD
+ ctx.font='6px "Press Start 2P"';ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(0,0,W,12);ctx.fillRect(0,H-12,W,12);
+ ctx.fillStyle='#fff';ctx.fillText(lv.title,3,9);
+ ctx.fillStyle='#e33';ctx.fillRect(W-30,3,3,3);ctx.fillRect(W-26,3,3,3);ctx.fillRect(W-30,6,7,3);ctx.fillRect(W-28,9,3,2);ctx.fillStyle='#fff';ctx.fillText('x'+S.lives,W-19,9);
+ const h=lv.hud(G);ctx.textAlign='center';ctx.fillText(h,W/2,H-4);
+ if(G.msg){ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(W/2-100,H/2-20,200,14);ctx.fillStyle='#ffd23f';ctx.fillText(G.msg.t,W/2,H/2-10)}
+ ctx.textAlign='left'}
+
+// ---------- telas ----------
+let typer={n:0,txt:''};
+function show(){ov.className='ov';const lv=LEVELS[S.li];
+ if(S.screen==='title')ov.innerHTML=`<div class="kick">Eleições 2026</div><h1>Super Lula World</h1><p>Descubra tudo que aconteceu no mundo do Lula.</p><p class="src">Sátira baseada em reportagens. Cada fase traz o fato, a fonte e o que a Justiça decidiu de verdade.</p><div class="hint">Setas / WASD movem · Z pula · X corre ou ação · Esc volta ao mapa · M liga/desliga som<br><br>Aperte Z para começar</div>`;
+ else if(S.screen==='map')ov.innerHTML=`<h2>Mundo do Lula</h2><div class="lv">${LEVELS.map((l,i)=>`<button data-i="${i}" class="${i===S.sel?'sel':''} ${i>=S.unlocked?'lock':''}">${esc(l.title)}${i>=S.unlocked?' · bloqueada':''}</button>`).join('')}</div><div class="hint">Cima/Baixo escolhem · Z entra</div>`,ov.querySelectorAll('button').forEach(b=>b.onclick=()=>{const i=+b.dataset.i;if(i<S.unlocked){S.sel=i;startLevel(i)}});
+ else if(S.screen==='intro'){typer={n:0,txt:lv.intro};ov.innerHTML=`<div class="kick">${esc(lv.title)}</div><p id="ty"></p><div class="hint">Z pula o texto · Z começa</div>`}
+ else if(S.screen==='dead'){const r=lv.lose[G.why]||lv.lose.default;const over=S.lives<=0;if(over)S.lives=5;ov.innerHTML=`<div class="kick">${esc(lv.title)}</div><div class="go-big">${over?'Game over':esc(r.head)}</div><h2>${over?esc(r.head):''}</h2><p>${esc(r.sub)}</p><p class="kick">vidas x${S.lives}</p><div class="hint">Z tenta de novo · Esc volta ao mapa</div>`}
+ else if(S.screen==='clear'){const left=LEVELS.length-S.li-1;ov.innerHTML=`<div class="kick">${esc(lv.title)}</div><h2>FASE CONCLUÍDA!</h2><p>${esc(lv.fact)}</p><p class="src">Fonte: <a href="${lv.src.u}" target="_blank" rel="noopener">${esc(lv.src.v)}</a></p><div class="hint">${left?`Faltam ${left} fase${left>1?'s':''} para o final`:'Última fase concluída'}<br><br>Aperte Z para continuar</div>`}
+ else if(S.screen==='ending'){const s=S.stats;ov.innerHTML=`<h1>Você zerou Super Lula World</h1><div class="kick">Eleições 2026</div><p>Em 2 de agosto de 2026, o PT oficializou Lula como candidato à reeleição, com Geraldo Alckmin de vice. É a sétima vez que ele disputa a Presidência. O principal adversário é Flávio Bolsonaro.</p><p>No jogo, você pagou ${s.deputados||0} deputados, subiu ${s.andares||0} andares do Solaris, recebeu ${s.sitio||0} reformas em Atibaia, passou ${s.dias||0} dias em Curitiba, viu R$ ${fmt(s.bi||0,1)} bi saírem dos aposentados e fez ${s.reunioes||0} reunião fora da agenda.</p><h2>O fim desse jogo é você quem escolhe</h2><p class="src">Fonte: <a href="https://www.jb.com.br/brasil/politica/2026/08/1060476-pt-oficializa-lula-como-candidato-a-reeleicao-em-convencao-nacional.html" target="_blank" rel="noopener">Jornal do Brasil, 02/08/2026</a></p><div class="hint">Z: julgamentos de mérito</div>`}
+ else if(S.screen==='merito')ov.innerHTML=`<h2>Julgamentos de mérito</h2><p class="kick">Condenações vigentes contra Lula: 0</p><ul class="mer">${LEVELS.map(l=>`<li><b>${esc(l.name)}:</b> ${esc(l.merito)}</li>`).join('')}</ul><p class="src">Fontes: ${LEVELS.map(l=>`<a href="${l.src.u}" target="_blank" rel="noopener">${esc(l.src.v)}</a>`).join(' · ')} · <a href="https://pt.wikipedia.org/wiki/Esc%C3%A2ndalo_do_Banco_Master" target="_blank" rel="noopener">Wikipédia: Escândalo do Banco Master</a> · <a href="https://www.gazetadopovo.com.br/republica/conexoes-com-lula-mantega-lewandowski-e-jaques-wagner-ligam-escandalo-do-master-ao-executivo/" target="_blank" rel="noopener">Gazeta do Povo, 2026</a></p><p class="src">Anulação não é absolvição e investigação não é condenação. Quem decide o resto é o eleitor.</p><div class="hint">Z volta ao título</div>`}
+
+let last=0,acc=0;
+function loop(now=0){acc=Math.min(acc+(now-last),100);last=now;
+ if(S.screen==='play'){while(acc>=1000/60){update();for(const k in pressed)pressed[k]=false;acc-=1000/60;if(S.screen!=='play')break}if(S.screen==='play')draw()}
+ else if(S.screen==='title'){if(okP()){S.screen='map';show()}}
+ else if(S.screen==='map'){if(pressed.ArrowDown||pressed.KeyS){S.sel=Math.min(S.unlocked-1,S.sel+1);show()}if(pressed.ArrowUp||pressed.KeyW){S.sel=Math.max(0,S.sel-1);show()}if(okP()){S.li=S.sel;S.screen='intro';show()}}
+ else if(S.screen==='intro'){const el=document.getElementById('ty');if(el){if(typer.n<typer.txt.length){typer.n=Math.min(typer.txt.length,typer.n+1.5);el.textContent=typer.txt.slice(0,Math.floor(typer.n));if(okP())typer.n=typer.txt.length}else if(okP())startLevel(S.li)}}
+ else if(S.screen==='dead'){if(okP()){S.screen='intro';show()}if(backP()){S.screen='map';show()}}
+ else if(S.screen==='clear'){if(okP()){if(S.li+1<LEVELS.length){S.li=S.sel=S.li+1;S.screen='intro';show()}else{S.screen='ending';show()}}}
+ else if(S.screen==='ending'){if(okP()){S.screen='merito';show()}}
+ else if(S.screen==='merito'){if(okP()){S.screen='title';show()}}
+ if(S.screen!=='play')for(const k in pressed)pressed[k]=false;
+ requestAnimationFrame(loop)}
+document.fonts.load('8px "Press Start 2P"').finally(()=>{show();loop()});
+</script>
+</body>
+</html>
